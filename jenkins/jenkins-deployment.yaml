@@ -1,4 +1,9 @@
-# jenkins-deployment.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-sa
+  namespace: jenkins
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,6 +19,7 @@ spec:
       labels:
         app: jenkins
     spec:
+      serviceAccountName: jenkins-sa
       containers:
       - name: jenkins
         image: jenkins/jenkins:lts
@@ -23,9 +29,16 @@ spec:
         volumeMounts:
         - name: jenkins-home
           mountPath: /var/jenkins_home
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        securityContext:
+          privileged: true
       volumes:
       - name: jenkins-home
         emptyDir: {}
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
 ---
 apiVersion: v1
 kind: Service
@@ -44,3 +57,31 @@ spec:
   - name: jnlp
     port: 50000
     targetPort: 50000
+```
+
+GitHub에 **Commit changes**
+
+---
+
+## Step 3: ArgoCD로 배포
+
+### ArgoCD UI에서 기존 jenkins 앱 삭제 (있다면)
+
+1. ArgoCD UI → `jenkins` 앱 클릭
+2. **DELETE** → 확인
+
+### 새로 생성
+
+1. **+ NEW APP** 클릭
+2. 입력:
+```
+   Application Name: jenkins
+   Project: default
+   Sync Policy: Manual
+   
+   Repository URL: https://github.com/haha15sds/gitops-repo.git
+   Revision: main
+   Path: jenkins
+   
+   Cluster URL: https://kubernetes.default.svc
+   Namespace: jenkins
